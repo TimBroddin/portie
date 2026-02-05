@@ -2,6 +2,10 @@
 
 A macOS menu bar app that monitors localhost ports for developers.
 
+## Download
+
+Download the latest version from [Releases](https://github.com/TimBroddin/portie/releases).
+
 ## Features
 
 - **Manual port list** - Add specific ports to monitor
