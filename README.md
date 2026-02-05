@@ -1,0 +1,40 @@
+# Portie
+
+A macOS menu bar app that monitors localhost ports for developers.
+
+## Features
+
+- **Manual port list** - Add specific ports to monitor
+- **Live status** - Shows process name and page title (e.g., "node · My Next App")
+- **Badge count** - Menu bar icon shows number of active ports
+- **Quick actions** - Kill processes or open in browser with one click
+- **Auto refresh** - 15-second polling with manual refresh option
+
+## Screenshot
+
+```
+┌─────────────────────────────────────────┐
+│  Portie                                 │
+├─────────────────────────────────────────┤
+│  ● 3000  node · My Next App    🗑️  🌐  │
+│  ○ 3001  (not running)              🌐  │
+│  ● 8080  python3 · Flask       🗑️  🌐  │
+├─────────────────────────────────────────┤
+│  + Add Port...                          │
+│  ↻ Refresh Now                          │
+│  Quit Portie                            │
+└─────────────────────────────────────────┘
+```
+
+## Requirements
+
+- macOS 14.0+
+- Xcode 15+
+
+## Building
+
+Open `Portie.xcodeproj` in Xcode and build (⌘B).
+
+## License
+
+MIT
