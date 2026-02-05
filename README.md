@@ -12,19 +12,7 @@ A macOS menu bar app that monitors localhost ports for developers.
 
 ## Screenshot
 
-```
-┌─────────────────────────────────────────┐
-│  Portie                                 │
-├─────────────────────────────────────────┤
-│  ● 3000  node · My Next App    🗑️  🌐  │
-│  ○ 3001  (not running)              🌐  │
-│  ● 8080  python3 · Flask       🗑️  🌐  │
-├─────────────────────────────────────────┤
-│  + Add Port...                          │
-│  ↻ Refresh Now                          │
-│  Quit Portie                            │
-└─────────────────────────────────────────┘
-```
+![Portie screenshot](screenshot.png)
 
 ## Requirements
 
