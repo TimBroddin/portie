@@ -3,6 +3,7 @@ set -e
 
 # Release script for Portie
 # Usage: ./scripts/release.sh [path-to-notarized-app]
+# Version is automatically read from the app's Info.plist
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -10,13 +11,15 @@ PROJECT_ROOT="$(cd "$REPO_ROOT/../.." && pwd)"
 
 APP_SOURCE="${1:-$PROJECT_ROOT/Portie.app}"
 ZIP_PATH="$PROJECT_ROOT/Portie.zip"
-VERSION="v1.0.1"
 
 if [ ! -d "$APP_SOURCE" ]; then
     echo "Error: Portie.app not found at $APP_SOURCE"
     echo "Usage: $0 [path-to-notarized-app]"
     exit 1
 fi
+
+VERSION="v$(defaults read "$APP_SOURCE/Contents/Info" CFBundleShortVersionString)"
+echo "Detected version: $VERSION"
 
 echo "Creating zip from $APP_SOURCE..."
 rm -f "$ZIP_PATH"
