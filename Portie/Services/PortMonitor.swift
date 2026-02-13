@@ -30,12 +30,20 @@ struct PortStatus: Equatable {
     }
 }
 
+struct DiscoveredPort: Equatable, Identifiable {
+    var id: Int { port }
+    let port: Int
+    let pid: Int
+    let processName: String
+}
+
 @MainActor
 @Observable
 final class PortMonitor {
     static let shared = PortMonitor()
 
     private(set) var statuses: [Int: PortStatus] = [:]
+    private(set) var discoveredPorts: [DiscoveredPort] = []
     private var timer: Timer?
     private let refreshInterval: TimeInterval = 15.0
 
@@ -63,10 +71,99 @@ final class PortMonitor {
                 statuses[port.port] = status
             }
         }
+        Task {
+            await discoverOpenPorts()
+        }
     }
 
     var activeCount: Int {
         statuses.values.filter { $0.isRunning }.count
+    }
+
+    private func discoverOpenPorts() async {
+        let monitoredPortNumbers = Set(PortStorage.shared.ports.map { $0.port })
+        let allListening = await getAllListeningPorts()
+        discoveredPorts = allListening
+            .filter { !monitoredPortNumbers.contains($0.port) }
+            .sorted { $0.port < $1.port }
+    }
+
+    private func getAllListeningPorts() async -> [DiscoveredPort] {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
+                process.arguments = ["-iTCP", "-sTCP:LISTEN", "-n", "-P"]
+
+                let pipe = Pipe()
+                process.standardOutput = pipe
+                process.standardError = FileHandle.nullDevice
+
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+
+                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                    guard let output = String(data: data, encoding: .utf8) else {
+                        continuation.resume(returning: [])
+                        return
+                    }
+
+                    var seen = Set<Int>()
+                    var results: [(port: Int, pid: Int)] = []
+
+                    for line in output.split(separator: "\n").dropFirst() { // skip header
+                        let columns = line.split(separator: " ", omittingEmptySubsequences: true)
+                        guard columns.count >= 9 else { continue }
+
+                        guard let pid = Int(columns[1]) else { continue }
+
+                        // Parse port from the NAME column (e.g. "*:3000" or "127.0.0.1:8080")
+                        let nameCol = String(columns[8])
+                        guard let colonIndex = nameCol.lastIndex(of: ":"),
+                              let port = Int(nameCol[nameCol.index(after: colonIndex)...]) else {
+                            continue
+                        }
+
+                        // Skip system/low ports and already seen ports
+                        guard port >= 1024, !seen.contains(port) else { continue }
+                        seen.insert(port)
+
+                        results.append((port: port, pid: pid))
+                    }
+
+                    // Resolve full process names via ps
+                    let discovered = results.compactMap { entry -> DiscoveredPort? in
+                        let psProcess = Process()
+                        psProcess.executableURL = URL(fileURLWithPath: "/bin/ps")
+                        psProcess.arguments = ["-p", "\(entry.pid)", "-o", "comm="]
+
+                        let psPipe = Pipe()
+                        psProcess.standardOutput = psPipe
+                        psProcess.standardError = FileHandle.nullDevice
+
+                        do {
+                            try psProcess.run()
+                            psProcess.waitUntilExit()
+                        } catch {
+                            return nil
+                        }
+
+                        let psData = psPipe.fileHandleForReading.readDataToEndOfFile()
+                        let name = String(data: psData, encoding: .utf8)?
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            .split(separator: "/").last
+                            .map(String.init) ?? "unknown"
+
+                        return DiscoveredPort(port: entry.port, pid: entry.pid, processName: name)
+                    }
+
+                    continuation.resume(returning: discovered)
+                } catch {
+                    continuation.resume(returning: [])
+                }
+            }
+        }
     }
 
     private func checkPort(_ port: Int) async -> PortStatus {
