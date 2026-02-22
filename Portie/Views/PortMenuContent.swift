@@ -12,10 +12,17 @@ import ServiceManagement
 struct PortMenuContent: View {
     @State private var portStorage = PortStorage.shared
     @State private var portMonitor = PortMonitor.shared
+    @State private var portlessService = PortlessService.shared
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if let proxy = portlessService.proxyStatus, proxy.isRunning {
+                PortlessProxyBadge(status: proxy)
+                Divider()
+                    .padding(.vertical, 4)
+            }
+
             if portStorage.ports.isEmpty {
                 Text("No ports configured")
                     .foregroundStyle(.secondary)
@@ -120,8 +127,19 @@ struct PortMenuItem: View {
     }
 
     private var portLabelText: String {
+        if let hostname = status?.portlessHostname {
+            return hostname
+        }
         let label = port.label ?? "Port"
         return "\(label) :\(port.port)"
+    }
+
+    private var portSubLabel: String? {
+        if status?.portlessHostname != nil {
+            let label = port.label ?? "Port"
+            return "\(label) :\(port.port)"
+        }
+        return nil
     }
 
     var body: some View {
@@ -135,6 +153,12 @@ struct PortMenuItem: View {
                     .font(.system(.body, weight: .medium))
                     .lineLimit(1)
                     .truncationMode(.tail)
+                if let sub = portSubLabel {
+                    Text(sub)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
                 if isRunning {
                     if !processNameText.isEmpty {
                         Text(processNameText)
@@ -169,6 +193,15 @@ struct PortMenuItem: View {
                 }
 
                 Button {
+                    copyURL()
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Copy URL")
+
+                Button {
                     openInBrowser()
                 } label: {
                     Image(systemName: "globe")
@@ -196,9 +229,20 @@ struct PortMenuItem: View {
         }
     }
 
+    private var bestURL: URL {
+        if let portlessURL = PortlessService.shared.url(for: port.port) {
+            return portlessURL
+        }
+        return URL(string: "http://localhost:\(port.port)")!
+    }
+
     private func openInBrowser() {
-        guard let url = URL(string: "http://localhost:\(port.port)") else { return }
-        NSWorkspace.shared.open(url)
+        NSWorkspace.shared.open(bestURL)
+    }
+
+    private func copyURL() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(bestURL.absoluteString, forType: .string)
     }
 
     private func killProcess() {
@@ -206,6 +250,31 @@ struct PortMenuItem: View {
             port: port.port,
             processName: status?.processName
         )
+    }
+}
+
+struct PortlessProxyBadge: View {
+    let status: PortlessProxyStatus
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(.blue)
+                .frame(width: 6, height: 6)
+            Text("Portless")
+                .font(.caption)
+                .fontWeight(.medium)
+            Text(":\(status.port)")
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
+            if status.isTLS {
+                Image(systemName: "lock.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 4)
     }
 }
 
