@@ -34,13 +34,13 @@ Portie monitors localhost ports and shows what's running. Portless gives those p
 When portless is active, Portie could read `~/.portless/routes.json` and display the portless hostname alongside the port number.
 
 **Current display:**
-```
+```text
 ● Port :4023
   node · My Next App
 ```
 
 **With portless integration:**
-```
+```text
 ● myapp.localhost:1355
   node · My Next App
 ```
@@ -66,7 +66,7 @@ Add a "Copy URL" action that copies the portless URL. Useful for sharing with te
 ### 4. Show Portless Proxy Status (Medium Value, Low Effort)
 
 Add a section in the menu showing whether the portless proxy is running:
-```
+```text
 Portless: ● Running (port 1355, HTTPS)
 ```
 

@@ -199,15 +199,16 @@ struct PortMenuItem: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Copy URL")
+                .help(isRunning ? "Copy URL" : "Copy URL (not running)")
 
                 Button {
                     openInBrowser()
                 } label: {
                     Image(systemName: "globe")
+                        .foregroundStyle(isRunning ? .primary : .secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Open in browser")
+                .help(isRunning ? "Open in browser" : "Open in browser (not running)")
 
                 Button {
                     PortStorage.shared.removePort(port.port)

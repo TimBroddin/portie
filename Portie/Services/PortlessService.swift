@@ -32,8 +32,15 @@ final class PortlessService {
 
     /// Reload portless routes and proxy status from disk
     func refresh() {
-        routes = loadRoutes()
-        proxyStatus = loadProxyStatus()
+        let dirs = stateDirectories()
+        Task.detached(priority: .utility) {
+            let newRoutes = Self.loadRoutes(from: dirs)
+            let newStatus = Self.loadProxyStatus(from: dirs)
+            await MainActor.run {
+                self.routes = newRoutes
+                self.proxyStatus = newStatus
+            }
+        }
     }
 
     /// Look up the portless hostname for a given port number
@@ -54,28 +61,20 @@ final class PortlessService {
     // MARK: - Private
 
     private func stateDirectories() -> [String] {
-        var dirs: [String] = []
-        if let home = ProcessInfo.processInfo.environment["HOME"] {
-            dirs.append("\(home)/.portless")
-        }
-        dirs.append("/tmp/portless")
-        return dirs
+        let home = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".portless").path
+        return [home, "/tmp/portless"]
     }
 
-    /// Find the first existing portless state directory
-    private func activeStateDirectory() -> String? {
-        for dir in stateDirectories() {
-            if FileManager.default.fileExists(atPath: "\(dir)/routes.json") {
-                return dir
-            }
-        }
-        return nil
+    private static func isProcessAlive(_ pid: Int32) -> Bool {
+        if kill(pid, 0) == 0 { return true }
+        // EPERM means the process exists but we lack permission — still alive
+        return errno == EPERM
     }
 
-    private func loadRoutes() -> [PortlessRoute] {
+    private static func loadRoutes(from dirs: [String]) -> [PortlessRoute] {
         var allRoutes: [PortlessRoute] = []
 
-        for dir in stateDirectories() {
+        for dir in dirs {
             let path = "\(dir)/routes.json"
             guard let data = FileManager.default.contents(atPath: path) else { continue }
 
@@ -90,10 +89,7 @@ final class PortlessService {
                     continue
                 }
 
-                // Check if the process is still alive
-                if kill(Int32(pid), 0) != 0 {
-                    continue
-                }
+                guard isProcessAlive(Int32(pid)) else { continue }
 
                 allRoutes.append(PortlessRoute(hostname: hostname, port: port, pid: pid))
             }
@@ -102,32 +98,33 @@ final class PortlessService {
         return allRoutes
     }
 
-    private func loadProxyStatus() -> PortlessProxyStatus? {
-        guard let dir = activeStateDirectory() else { return nil }
+    private static func loadProxyStatus(from dirs: [String]) -> PortlessProxyStatus? {
+        for dir in dirs {
+            let pidPath = "\(dir)/proxy.pid"
+            guard let pidData = FileManager.default.contents(atPath: pidPath),
+                  let pidString = String(data: pidData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let pid = Int32(pidString) else {
+                continue
+            }
 
-        // Read proxy PID
-        let pidPath = "\(dir)/proxy.pid"
-        guard let pidData = FileManager.default.contents(atPath: pidPath),
-              let pidString = String(data: pidData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-              let pid = Int32(pidString) else {
-            return nil
+            let isRunning = isProcessAlive(pid)
+            if !isRunning { continue }
+
+            // Read proxy port (default 1355)
+            var proxyPort = 1355
+            let portPath = "\(dir)/proxy.port"
+            if let portData = FileManager.default.contents(atPath: portPath),
+               let portString = String(data: portData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               let port = Int(portString) {
+                proxyPort = port
+            }
+
+            // Check TLS mode
+            let isTLS = FileManager.default.fileExists(atPath: "\(dir)/proxy.tls")
+
+            return PortlessProxyStatus(isRunning: true, port: proxyPort, isTLS: isTLS)
         }
 
-        // Check if proxy process is alive
-        let isRunning = kill(pid, 0) == 0
-
-        // Read proxy port (default 1355)
-        var proxyPort = 1355
-        let portPath = "\(dir)/proxy.port"
-        if let portData = FileManager.default.contents(atPath: portPath),
-           let portString = String(data: portData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-           let port = Int(portString) {
-            proxyPort = port
-        }
-
-        // Check TLS mode
-        let isTLS = FileManager.default.fileExists(atPath: "\(dir)/proxy.tls")
-
-        return PortlessProxyStatus(isRunning: isRunning, port: proxyPort, isTLS: isTLS)
+        return nil
     }
 }
