@@ -14,6 +14,7 @@ struct PortStatus: Equatable {
     let pid: Int?
     let processName: String?
     let pageTitle: String?
+    let portlessHostname: String?
 
     var displayName: String {
         if !isRunning {
@@ -64,6 +65,8 @@ final class PortMonitor {
     }
 
     func refresh() {
+        PortlessService.shared.refresh()
+
         let ports = PortStorage.shared.ports
         for port in ports {
             Task {
@@ -77,7 +80,10 @@ final class PortMonitor {
     }
 
     var activeCount: Int {
-        statuses.values.filter { $0.isRunning }.count
+        let watchedRunning = statuses.values.filter { $0.isRunning }
+        let watchedPorts = Set(watchedRunning.map { $0.port })
+        let portlessOnly = PortlessService.shared.routes.filter { !watchedPorts.contains($0.port) }
+        return watchedRunning.count + portlessOnly.count
     }
 
     private func discoverOpenPorts() async {
@@ -168,14 +174,15 @@ final class PortMonitor {
 
     private func checkPort(_ port: Int) async -> PortStatus {
         let processInfo = await getProcessInfo(port: port)
+        let portlessHostname = PortlessService.shared.hostname(for: port)
 
         guard let (pid, processName) = processInfo else {
-            return PortStatus(port: port, isRunning: false, pid: nil, processName: nil, pageTitle: nil)
+            return PortStatus(port: port, isRunning: false, pid: nil, processName: nil, pageTitle: nil, portlessHostname: portlessHostname)
         }
 
         let pageTitle = await fetchPageTitle(port: port)
 
-        return PortStatus(port: port, isRunning: true, pid: pid, processName: processName, pageTitle: pageTitle)
+        return PortStatus(port: port, isRunning: true, pid: pid, processName: processName, pageTitle: pageTitle, portlessHostname: portlessHostname)
     }
 
     private func getProcessInfo(port: Int) async -> (pid: Int, name: String)? {

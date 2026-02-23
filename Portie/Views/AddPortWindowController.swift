@@ -31,8 +31,10 @@ final class AddPortWindowController {
 
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Add Port"
-        window.styleMask = [.titled, .closable]
-        window.setContentSize(NSSize(width: 320, height: 300))
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.setContentSize(NSSize(width: 320, height: 320))
         window.center()
         window.isReleasedWhenClosed = false
         window.level = .floating
@@ -60,16 +62,29 @@ struct AddPortWindowView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("", selection: $selectedTab) {
-                ForEach(AddPortTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
+            // Custom toolbar header
+            VStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "network.badge.shield.half.filled")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.tint)
+                    Text("Add Port")
+                        .font(.system(size: 14, weight: .semibold))
                 }
+                .padding(.top, 16)
+
+                Picker("", selection: $selectedTab) {
+                    ForEach(AddPortTab.allCases, id: \.self) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, 20)
+                .padding(.bottom, 10)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
+            .frame(maxWidth: .infinity)
+            .background(.bar)
 
             Divider()
 
@@ -115,6 +130,8 @@ struct ManualAddPortView: View {
                     .font(.caption)
             }
 
+            Spacer()
+
             HStack {
                 Spacer()
                 Button("Cancel") {
@@ -125,11 +142,12 @@ struct ManualAddPortView: View {
                 Button("Add") {
                     addPort()
                 }
+                .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.return)
                 .disabled(portText.isEmpty)
             }
         }
-        .padding()
+        .padding(20)
     }
 
     private func addPort() {
