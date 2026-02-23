@@ -32,9 +32,15 @@ final class PortlessService {
 
     /// Reload portless routes and proxy status from disk
     func refresh() {
-        let dirs = stateDirectories()
-        routes = Self.loadRoutes(from: dirs)
-        proxyStatus = Self.loadProxyStatus(from: dirs)
+        let dirs = Self.stateDirectories()
+        Task.detached {
+            let routes = Self.loadRoutes(from: dirs)
+            let proxyStatus = Self.loadProxyStatus(from: dirs)
+            await MainActor.run { [weak self] in
+                self?.routes = routes
+                self?.proxyStatus = proxyStatus
+            }
+        }
     }
 
     /// Look up the portless hostname for a given port number
@@ -54,18 +60,18 @@ final class PortlessService {
 
     // MARK: - Private
 
-    private func stateDirectories() -> [String] {
+    nonisolated private static func stateDirectories() -> [String] {
         let home = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".portless").path
         return [home, "/tmp/portless"]
     }
 
-    private static func isProcessAlive(_ pid: Int32) -> Bool {
+    nonisolated private static func isProcessAlive(_ pid: Int32) -> Bool {
         if kill(pid, 0) == 0 { return true }
         // EPERM means the process exists but we lack permission — still alive
         return errno == EPERM
     }
 
-    private static func loadRoutes(from dirs: [String]) -> [PortlessRoute] {
+    nonisolated private static func loadRoutes(from dirs: [String]) -> [PortlessRoute] {
         var allRoutes: [PortlessRoute] = []
 
         for dir in dirs {
@@ -83,7 +89,7 @@ final class PortlessService {
                     continue
                 }
 
-                guard isProcessAlive(Int32(pid)) else { continue }
+                guard let pid32 = Int32(exactly: pid), isProcessAlive(pid32) else { continue }
 
                 allRoutes.append(PortlessRoute(hostname: hostname, port: port, pid: pid))
             }
@@ -92,7 +98,7 @@ final class PortlessService {
         return allRoutes
     }
 
-    private static func loadProxyStatus(from dirs: [String]) -> PortlessProxyStatus? {
+    nonisolated private static func loadProxyStatus(from dirs: [String]) -> PortlessProxyStatus? {
         for dir in dirs {
             let pidPath = "\(dir)/proxy.pid"
             guard let pidData = FileManager.default.contents(atPath: pidPath),
