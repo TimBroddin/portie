@@ -73,6 +73,7 @@ struct PortMenuContent: View {
             Toggle("Open at Login", isOn: $launchAtLogin)
                 .toggleStyle(.checkbox)
                 .padding(.horizontal)
+                .padding(.vertical, 8)
                 .onChange(of: launchAtLogin) { _, newValue in
                     do {
                         if newValue {
