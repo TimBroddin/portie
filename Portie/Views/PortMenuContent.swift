@@ -19,6 +19,13 @@ struct PortMenuContent: View {
         VStack(alignment: .leading, spacing: 0) {
             if let proxy = portlessService.proxyStatus, proxy.isRunning {
                 PortlessProxyBadge(status: proxy)
+
+                if !portlessService.routes.isEmpty {
+                    ForEach(portlessService.routes, id: \.hostname) { route in
+                        PortlessRouteMenuItem(route: route, proxyStatus: proxy)
+                    }
+                }
+
                 Divider()
                     .padding(.vertical, 4)
             }
@@ -254,6 +261,66 @@ struct PortMenuItem: View {
     }
 }
 
+struct PortlessRouteMenuItem: View {
+    let route: PortlessRoute
+    let proxyStatus: PortlessProxyStatus
+    @State private var isHovering = false
+
+    private var url: URL {
+        let scheme = proxyStatus.isTLS ? "https" : "http"
+        return URL(string: "\(scheme)://\(route.hostname):\(proxyStatus.port)")!
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            Circle()
+                .fill(.green)
+                .frame(width: 8, height: 8)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(route.hostname)
+                    .font(.system(.body, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Text(verbatim: "localhost:\(route.port)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if isHovering {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(url.absoluteString, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Copy URL")
+
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    Image(systemName: "globe")
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
+                .help("Open in browser")
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity)
+        .background(isHovering ? Color.gray.opacity(0.1) : Color.clear)
+        .cornerRadius(4)
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
 struct PortlessProxyBadge: View {
     let status: PortlessProxyStatus
 
@@ -265,7 +332,7 @@ struct PortlessProxyBadge: View {
             Text("Portless")
                 .font(.caption)
                 .fontWeight(.medium)
-            Text(":\(status.port)")
+            Text(verbatim: ":\(status.port)")
                 .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
             if status.isTLS {

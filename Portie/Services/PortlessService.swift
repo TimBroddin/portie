@@ -33,14 +33,8 @@ final class PortlessService {
     /// Reload portless routes and proxy status from disk
     func refresh() {
         let dirs = stateDirectories()
-        Task.detached(priority: .utility) {
-            let newRoutes = Self.loadRoutes(from: dirs)
-            let newStatus = Self.loadProxyStatus(from: dirs)
-            await MainActor.run {
-                self.routes = newRoutes
-                self.proxyStatus = newStatus
-            }
-        }
+        routes = Self.loadRoutes(from: dirs)
+        proxyStatus = Self.loadProxyStatus(from: dirs)
     }
 
     /// Look up the portless hostname for a given port number

@@ -80,7 +80,10 @@ final class PortMonitor {
     }
 
     var activeCount: Int {
-        statuses.values.filter { $0.isRunning }.count
+        let watchedRunning = statuses.values.filter { $0.isRunning }
+        let watchedPorts = Set(watchedRunning.map { $0.port })
+        let portlessOnly = PortlessService.shared.routes.filter { !watchedPorts.contains($0.port) }
+        return watchedRunning.count + portlessOnly.count
     }
 
     private func discoverOpenPorts() async {
